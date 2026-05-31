@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Turtle Robot Simulator</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0f172a; --card: #1e293b; --border: #334155;
+    --primary: #10b981; --primary-fg: #fff;
+    --muted: #1e293b; --muted-fg: #94a3b8;
+    --fg: #f1f5f9; --fg2: #cbd5e1;
+    --radius: 10px; --danger: #ef4444;
+  }
+  body { background: var(--bg); color: var(--fg); font-family: Inter, system-ui, sans-serif; min-height: 100vh; }
+  button { cursor: pointer; font-family: inherit; }
+
+  /* HEADER */
+  header {
+    position: sticky; top: 0; z-index: 10;
+    background: var(--card); border-bottom: 1px solid var(--border);
+    padding: 0 20px; height: 56px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .logo { display: flex; align-items: center; gap: 10px; }
+  .logo-badge {
+    width: 32px; height: 32px; border-radius: 8px;
+    background: var(--primary); color: #fff;
+    font-weight: 700; font-size: 13px; font-family: monospace;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .logo h1 { font-size: 17px; font-weight: 700; }
+  .header-right { display: flex; align-items: center; gap: 8px; }
+
+  /* TABS */
+  .tabs { display: flex; background: var(--muted); border-radius: 8px; padding: 3px; gap: 2px; }
+  .tab-btn {
+    padding: 5px 14px; border-radius: 6px; border: none;
+    background: transparent; color: var(--muted-fg);
+    font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 6px;
+    transition: all .15s;
+  }
+  .tab-btn.active { background: var(--card); color: var(--fg); box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+  .tab-btn:hover:not(.active) { color: var(--fg2); }
+  .tab-btn svg { width: 14px; height: 14px; }
+
+  /* ICON BUTTONS */
+  .icon-btn {
+    height: 32px; padding: 0 12px; border-radius: 7px;
+    border: 1px solid var(--border); background: transparent;
+    color: var(--fg2); font-size: 13px; font-weight: 500;
+    display: flex; align-items: center; gap: 6px;
+    transition: all .15s;
+  }
+  .icon-btn:hover:not(:disabled) { background: rgba(255,255,255,.05); color: var(--fg); }
+  .icon-btn:disabled { opacity: .4; cursor: not-allowed; }
+  .icon-btn svg { width: 14px; height: 14px; }
+
+  /* MAIN */
+  main { max-width: 1200px; margin: 0 auto; padding: 24px 20px; }
+
+  /* TAB PANELS */
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* SIMULATOR LAYOUT */
+  .sim-layout { display: grid; grid-template-columns: 1fr 280px; gap: 20px; align-items: start; }
+  @media (max-width: 800px) { .sim-layout { grid-template-columns: 1fr; } }
+
+  /* HINT BAR */
+  .hint-bar {
+    background: var(--muted); border-radius: 8px;
+    padding: 8px 14px; font-size: 12px; color: var(--muted-fg);
+    display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 12px;
+  }
+  .hint-bar strong { color: var(--fg2); }
+
+  /* CANVAS WRAPPER */
+  .canvas-row { display: flex; gap: 10px; align-items: stretch; }
+  .canvas-wrap {
+    position: relative; flex: 1;
+    background: #0b1120; border-radius: 12px;
+    border: 2px solid #1e3a5f; overflow: hidden;
+    box-shadow: 0 4px 24px rgba(0,0,0,.5);
+  }
+  #turtleCanvas { display: block; width: 100%; height: 480px; cursor: crosshair; }
+
+  /* HUD */
+  .hud {
+    position: absolute; top: 12px; left: 12px;
+    background: rgba(5,15,30,.85); backdrop-filter: blur(4px);
+    border: 1px solid #1e3a5f; border-radius: 8px;
+    padding: 10px 12px; font-family: monospace; font-size: 11px; color: #94a3b8;
+  }
+  .hud-row { display: flex; justify-content: space-between; gap: 16px; }
+  .hud-row + .hud-row { margin-top: 2px; }
+  .hud-row.sep { margin-top: 6px; padding-top: 6px; border-top: 1px solid #1e3a5f; }
+  .hud-val { font-weight: 700; color: #f1f5f9; }
+  .hud-pen-down { color: var(--primary); }
+  .hud-pen-up { color: #475569; }
+
+  /* QUICK DRAW STRIP */
+  .quick-strip {
+    display: flex; flex-direction: column; gap: 6px;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 10px 8px;
+    min-width: 76px; align-items: center;
+  }
+  .strip-label {
+    font-size: 9px; font-weight: 700; color: var(--muted-fg);
+    text-transform: uppercase; letter-spacing: .08em;
+    text-align: center; line-height: 1.3; margin-bottom: 2px;
+  }
+  .strip-btn {
+    width: 58px; padding: 8px 4px;
+    border-radius: 8px; border: 1px solid var(--border);
+    background: transparent; color: var(--fg2);
+    font-size: 10px; font-weight: 600;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    transition: all .15s;
+  }
+  .strip-btn:hover:not(:disabled) { background: rgba(255,255,255,.07); color: var(--fg); border-color: var(--primary); }
+  .strip-btn:disabled { opacity: .4; cursor: not-allowed; }
+  .strip-btn svg { width: 16px; height: 16px; }
+  .strip-btn.stop { background: rgba(239,68,68,.15); color: var(--danger); border-color: var(--danger); }
+
+  /* CONTROLS CARD */
+  .ctrl-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 18px;
+  }
+  .ctrl-title { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 15px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+  .ctrl-title svg { color: var(--primary); width: 18px; height: 18px; }
+
+  /* D-PAD */
+  .dpad { display: grid; grid-template-columns: repeat(3, 40px); gap: 4px; justify-content: center; }
+  .dpad-btn {
+    width: 40px; height: 40px; border-radius: 8px;
+    border: 1px solid var(--border); background: transparent;
+    color: var(--fg2); display: flex; align-items: center; justify-content: center;
+    transition: all .15s;
+  }
+  .dpad-btn:hover:not(:disabled) { background: rgba(255,255,255,.07); color: var(--fg); }
+  .dpad-btn svg { width: 16px; height: 16px; }
+  .dpad-empty { width: 40px; height: 40px; }
+  .ctrl-section-label { font-size: 10px; font-weight: 700; color: var(--muted-fg); text-transform: uppercase; letter-spacing: .08em; text-align: center; margin-bottom: 4px; }
+
+  /* SLIDERS */
+  .slider-row { display: flex; flex-direction: column; gap: 6px; }
+  .slider-header { display: flex; justify-content: space-between; align-items: center; }
+  .slider-label { font-size: 13px; }
+  .slider-val { font-family: monospace; font-size: 11px; background: var(--muted); padding: 2px 7px; border-radius: 5px; }
+  input[type=range] {
+    -webkit-appearance: none; width: 100%; height: 5px;
+    background: var(--border); border-radius: 3px; outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 16px; height: 16px;
+    border-radius: 50%; background: var(--primary); cursor: pointer;
+    border: 2px solid var(--card);
+  }
+
+  /* TOGGLE */
+  .toggle-row { display: flex; align-items: center; justify-content: space-between; }
+  .toggle-label { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+  .toggle-label svg { width: 14px; height: 14px; color: var(--muted-fg); }
+  .toggle {
+    position: relative; width: 42px; height: 24px;
+    background: var(--border); border-radius: 12px;
+    cursor: pointer; transition: background .2s; border: none;
+  }
+  .toggle.on { background: var(--primary); }
+  .toggle::after {
+    content: ''; position: absolute; top: 3px; left: 3px;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: #fff; transition: transform .2s;
+  }
+  .toggle.on::after { transform: translateX(18px); }
+
+  /* COLOR */
+  .color-row { display: flex; align-items: center; justify-content: space-between; font-size: 13px; }
+  input[type=color] {
+    width: 32px; height: 32px; border: none; border-radius: 6px;
+    cursor: pointer; padding: 0; background: none;
+  }
+
+  /* ACTION BUTTONS */
+  .action-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; border-top: 1px solid var(--border); padding-top: 14px; }
+  .act-btn {
+    padding: 9px; border-radius: 8px; border: 1px solid var(--border);
+    background: transparent; color: var(--fg2); font-size: 13px; font-weight: 500;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    transition: all .15s;
+  }
+  .act-btn:hover:not(:disabled) { background: rgba(255,255,255,.07); color: var(--fg); }
+  .act-btn svg { width: 14px; height: 14px; }
+
+  /* SCRIPTS */
+  .scripts-header { margin-bottom: 24px; }
+  .scripts-header h2 { font-size: 26px; font-weight: 700; margin-bottom: 6px; }
+  .scripts-header p { color: var(--muted-fg); font-size: 14px; }
+  .script-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+  .script-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 10px;
+  }
+  .script-card h3 { font-size: 15px; font-weight: 600; }
+  .script-card p { font-size: 13px; color: var(--muted-fg); flex: 1; }
+  .script-run-btn {
+    padding: 8px 14px; border-radius: 8px;
+    background: var(--primary); color: #fff; border: none;
+    font-size: 13px; font-weight: 600;
+    display: flex; align-items: center; gap: 6px;
+    transition: opacity .15s; align-self: flex-start;
+  }
+  .script-run-btn:hover:not(:disabled) { opacity: .85; }
+  .script-run-btn:disabled { opacity: .4; cursor: not-allowed; }
+  .script-run-btn svg { width: 14px; height: 14px; }
+  .script-running { background: var(--danger); }
+
+  /* GUIDE */
+  .guide-wrap { max-width: 680px; }
+  .guide-wrap h2 { font-size: 26px; font-weight: 700; margin-bottom: 6px; }
+  .guide-wrap > p { color: var(--muted-fg); font-size: 14px; margin-bottom: 28px; }
+  .guide-section { margin-bottom: 24px; }
+  .guide-section h3 { font-size: 16px; font-weight: 600; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  .guide-section h3 .badge { font-size: 11px; background: rgba(16,185,129,.15); color: var(--primary); border-radius: 5px; padding: 2px 7px; font-weight: 600; }
+  .kbd-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+  .kbd-row { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  kbd {
+    font-family: monospace; font-size: 11px; font-weight: 700;
+    background: var(--muted); border: 1px solid var(--border);
+    border-radius: 5px; padding: 3px 7px; color: var(--fg2);
+  }
+  .guide-tip {
+    background: rgba(16,185,129,.08); border: 1px solid rgba(16,185,129,.2);
+    border-radius: 8px; padding: 12px 14px; font-size: 13px; color: var(--fg2);
+    display: flex; gap: 8px;
+  }
+
+  /* TOAST */
+  #toast {
+    position: fixed; bottom: 24px; right: 24px;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 16px;
+    font-size: 13px; color: var(--fg);
+    box-shadow: 0 8px 24px rgba(0,0,0,.4);
+    transform: translateY(80px); opacity: 0;
+    transition: all .3s; pointer-events: none; z-index: 100;
+    max-width: 260px;
+  }
+  #toast.show { transform: translateY(0); opacity: 1; }
+  #toast strong { display: block; margin-bottom: 2px; }
+
+  /* MOBILE TABS */
+  .mobile-tabs {
+    display: none; background: var(--card);
+    border-bottom: 1px solid var(--border); padding: 8px 12px;
+  }
+  .mobile-tabs .tabs { width: 100%; }
+  .mobile-tabs .tab-btn { flex: 1; justify-content: center; }
+  @media (max-width: 600px) {
+    .mobile-tabs { display: flex; }
+    .desktop-right { display: none !important; }
+    main { padding: 14px 12px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-badge">TS</div>
+    <h1>Turtle Simulator</h1>
+  </div>
+  <div class="header-right desktop-right">
+    <button class="icon-btn" id="undoBtn" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
+      Undo
+    </button>
+    <button class="icon-btn" id="redoBtn" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13"/></svg>
+      Redo
+    </button>
+    <div class="tabs" id="desktopTabs">
+      <button class="tab-btn active" data-tab="simulator">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+        Sim
+      </button>
+      <button class="tab-btn" data-tab="scripts">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+        Scripts
+      </button>
+      <button class="tab-btn" data-tab="guide">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+        Guide
+      </button>
+    </div>
+  </div>
+</header>
+
+<div class="mobile-tabs">
+  <div class="tabs" id="mobileTabs">
+    <button class="tab-btn active" data-tab="simulator">Sim</button>
+    <button class="tab-btn" data-tab="scripts">Scripts</button>
+    <button class="tab-btn" data-tab="guide">Guide</button>
+  </div>
+</div>
+
+<main>
+
+  <!-- SIMULATOR -->
+  <div class="panel active" id="panel-simulator">
+    <div class="hint-bar">
+      <span><strong>Arrows/WASD</strong>: Move</span>
+      <span><strong>Space</strong>: Pen Up/Down</span>
+      <span><strong>R</strong>: Reset &nbsp;<strong>C</strong>: Clear</span>
+      <span><strong>Ctrl+Z</strong>: Undo &nbsp;<strong>Ctrl+Y</strong>: Redo</span>
+    </div>
+    <div class="sim-layout">
+      <div>
+        <div class="canvas-row">
+          <div class="canvas-wrap">
+            <canvas id="turtleCanvas"></canvas>
+            <div class="hud">
+              <div class="hud-row"><span>X:</span><span class="hud-val" id="hudX">300</span></div>
+              <div class="hud-row"><span>Y:</span><span class="hud-val" id="hudY">250</span></div>
+              <div class="hud-row"><span>HDG:</span><span class="hud-val" id="hudH">0°</span></div>
+              <div class="hud-row sep"><span>PEN:</span><span class="hud-val hud-pen-down" id="hudPen">DOWN</span></div>
+            </div>
+          </div>
+          <!-- Quick Draw -->
+          <div class="quick-strip">
+            <div class="strip-label">Quick<br>Draw</div>
+            <button class="strip-btn" id="qdSquare">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+              Square
+            </button>
+            <button class="strip-btn" id="qdCircle">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg>
+              Circle
+            </button>
+            <button class="strip-btn" id="qdSpiral">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 12c0-2 1.5-4 4-4s4 2 4 4-2 4-4 4-4-2-4-4c0-3 2-6 6-6s6 3 6 6-3 6-6 6-6-3-6-6c0-4 3-8 8-8"/></svg>
+              Spiral
+            </button>
+            <button class="strip-btn stop" id="stopBtn" style="display:none">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><rect x="9" y="9" width="6" height="6"/></svg>
+              Stop
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Controls -->
+      <div class="ctrl-card">
+        <div class="ctrl-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v3M12 20v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M1 12h3M20 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg>
+          Controls
+        </div>
+
+        <div>
+          <div class="ctrl-section-label">Manual Movement</div>
+          <div class="dpad">
+            <div class="dpad-empty"></div>
+            <button class="dpad-btn" id="btnUp">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"/></svg>
+            </button>
+            <div class="dpad-empty"></div>
+            <button class="dpad-btn" id="btnLeft">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+            <button class="dpad-btn" id="btnDown">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <button class="dpad-btn" id="btnRight">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="slider-row">
+          <div class="slider-header">
+            <span class="slider-label">Speed</span>
+            <span class="slider-val" id="speedVal">5</span>
+          </div>
+          <input type="range" id="speedSlider" min="1" max="10" value="5">
+        </div>
+
+        <div class="slider-row">
+          <div class="slider-header">
+            <span class="slider-label">Pen Size</span>
+            <span class="slider-val" id="penSizeVal">2</span>
+          </div>
+          <input type="range" id="penSizeSlider" min="1" max="10" value="2">
+        </div>
+
+        <div class="toggle-row">
+          <div class="toggle-label">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
+            Draw (Pen Down)
+          </div>
+          <button class="toggle on" id="penToggle"></button>
+        </div>
+
+        <div class="color-row">
+          <span>Pen Color</span>
+          <input type="color" id="colorPicker" value="#10b981">
+        </div>
+
+        <div class="action-row">
+          <button class="act-btn" id="clearBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 5H9l-7 7 7 7h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2z"/><line x1="18" y1="9" x2="12" y2="15"/><line x1="12" y1="9" x2="18" y2="15"/></svg>
+            Clear
+          </button>
+          <button class="act-btn" id="resetBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.5"/></svg>
+            Reset
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCRIPTS -->
+  <div class="panel" id="panel-scripts">
+    <div class="scripts-header">
+      <h2>Automated Scripts</h2>
+      <p>Robots don't just respond to joysticks — they follow pre-programmed instructions. Run these scripts to see how basic commands combine to create complex shapes.</p>
+    </div>
+    <div class="script-grid" id="scriptGrid"></div>
+  </div>
+
+  <!-- GUIDE -->
+  <div class="panel" id="panel-guide">
+    <div class="guide-wrap">
+      <h2>Beginner's Guide</h2>
+      <p>Learn how to control the turtle robot and understand the basics of programming movement.</p>
+
+      <div class="guide-section">
+        <h3>🐢 What is a Turtle Robot? <span class="badge">Concept</span></h3>
+        <p style="font-size:14px;color:var(--muted-fg);line-height:1.6">
+          A turtle robot is a simple programmable robot that moves around and draws lines. You give it instructions like "move forward 100 steps" or "turn right 90 degrees" and it traces a path. This is how kids first learned to code in the 1960s with a language called Logo!
+        </p>
+      </div>
+
+      <div class="guide-section">
+        <h3>⌨️ Keyboard Controls <span class="badge">Controls</span></h3>
+        <div class="kbd-grid">
+          <div class="kbd-row"><kbd>↑</kbd><kbd>W</kbd><span style="color:var(--muted-fg)">Move forward</span></div>
+          <div class="kbd-row"><kbd>↓</kbd><kbd>S</kbd><span style="color:var(--muted-fg)">Move backward</span></div>
+          <div class="kbd-row"><kbd>←</kbd><kbd>A</kbd><span style="color:var(--muted-fg)">Turn left</span></div>
+          <div class="kbd-row"><kbd>→</kbd><kbd>D</kbd><span style="color:var(--muted-fg)">Turn right</span></div>
+          <div class="kbd-row"><kbd>Space</kbd><span style="color:var(--muted-fg)">Toggle pen</span></div>
+          <div class="kbd-row"><kbd>R</kbd><span style="color:var(--muted-fg)">Reset turtle</span></div>
+          <div class="kbd-row"><kbd>C</kbd><span style="color:var(--muted-fg)">Clear drawing</span></div>
+          <div class="kbd-row"><kbd>Ctrl+Z</kbd><span style="color:var(--muted-fg)">Undo</span></div>
+          <div class="kbd-row"><kbd>Ctrl+Y</kbd><span style="color:var(--muted-fg)">Redo</span></div>
+        </div>
+      </div>
+
+      <div class="guide-section">
+        <h3>📐 How Squares Work <span class="badge">Example</span></h3>
+        <p style="font-size:14px;color:var(--muted-fg);line-height:1.6;margin-bottom:10px">
+          A square has 4 equal sides and 4 right-angle corners. To draw one, repeat 4 times: move forward, then turn right 90°. The total turning is 4 × 90° = 360° — a full circle!
+        </p>
+        <div class="guide-tip">
+          💡 Try the Square button in Quick Draw to see this in action, then use Undo to go back step by step.
+        </div>
+      </div>
+
+      <div class="guide-section">
+        <h3>⭕ How Circles Work <span class="badge">Example</span></h3>
+        <p style="font-size:14px;color:var(--muted-fg);line-height:1.6;margin-bottom:10px">
+          A circle is drawn by taking 36 tiny steps, each with a 10° turn. 36 × 10° = 360° — another full rotation, but with short steps so it looks round.
+        </p>
+      </div>
+
+      <div class="guide-section">
+        <h3>🌀 How Spirals Work <span class="badge">Example</span></h3>
+        <p style="font-size:14px;color:var(--muted-fg);line-height:1.6">
+          A spiral increases the step size each iteration. Move forward a little, turn, then move forward a little more next time. The growing steps push the path outward.
+        </p>
+      </div>
+
+      <div class="guide-section">
+        <h3>🎨 Pen Controls</h3>
+        <p style="font-size:14px;color:var(--muted-fg);line-height:1.6">
+          Toggle the pen up/down to draw dotted paths or lift the turtle to move without drawing. Change pen color and size to create colorful artwork. Try drawing a shape, changing the color, then drawing another on top!
+        </p>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<div id="toast"><strong id="toastTitle"></strong><span id="toastMsg"></span></div>
+
+<script>
+// ─── STATE ───────────────────────────────────────────────────────────────────
+const CANVAS_W = 600, CANVAS_H = 480;
+const DEFAULT = { x: 300, y: 240, heading: 0, penDown: true, penColor: '#10b981', penWidth: 2, speed: 5 };
+
+let turtle = { ...DEFAULT };
+let trail = [];        // { sx, sy, ex, ey, color, width }[]
+let isAnimating = false;
+let scriptQueue = [];
+let animInterval = null;
+
+// Undo/Redo
+const MAX_HIST = 100;
+let undoStack = [];
+let redoStack = [];
+
+function snapshot() {
+  return { pos: { x: turtle.x, y: turtle.y }, heading: turtle.heading, trail: trail.map(s => ({...s})) };
+}
+function pushHistory() {
+  const snap = snapshot();
+  undoStack = [...undoStack.slice(-MAX_HIST + 1), snap];
+  redoStack = [];
+  syncUndoButtons();
+}
+function restoreSnapshot(snap) {
+  turtle.x = snap.pos.x; turtle.y = snap.pos.y; turtle.heading = snap.heading;
+  trail = snap.trail.map(s => ({...s}));
+  render(); updateHUD();
+}
+function undo() {
+  if (!undoStack.length) return;
+  const cur = snapshot();
+  redoStack = [...redoStack, cur];
+  const snap = undoStack[undoStack.length - 1];
+  undoStack = undoStack.slice(0, -1);
+  restoreSnapshot(snap); syncUndoButtons();
+}
+function redo() {
+  if (!redoStack.length) return;
+  const cur = snapshot();
+  undoStack = [...undoStack, cur];
+  const snap = redoStack[redoStack.length - 1];
+  redoStack = redoStack.slice(0, -1);
+  restoreSnapshot(snap); syncUndoButtons();
+}
+function syncUndoButtons() {
+  document.getElementById('undoBtn').disabled = undoStack.length === 0;
+  document.getElementById('redoBtn').disabled = redoStack.length === 0;
+}
+
+// ─── CANVAS ──────────────────────────────────────────────────────────────────
+const canvas = document.getElementById('turtleCanvas');
+canvas.width = CANVAS_W; canvas.height = CANVAS_H;
+const ctx = canvas.getContext('2d');
+
+function render() {
+  ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+
+  // Grid
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= CANVAS_W; i += 50) {
+    ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, CANVAS_H); ctx.stroke();
+  }
+  for (let i = 0; i <= CANVAS_H; i += 50) {
+    ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(CANVAS_W, i); ctx.stroke();
+  }
+
+  // Trail
+  trail.forEach(seg => {
+    ctx.beginPath();
+    ctx.moveTo(seg.sx, seg.sy); ctx.lineTo(seg.ex, seg.ey);
+    ctx.strokeStyle = seg.color; ctx.lineWidth = seg.width; ctx.lineCap = 'round';
+    ctx.stroke();
+  });
+
+  // Turtle
+  ctx.save();
+  ctx.translate(turtle.x, turtle.y);
+  ctx.rotate((turtle.heading * Math.PI) / 180);
+  drawTurtle(ctx);
+  ctx.restore();
+}
+
+function drawTurtle(ctx) {
+  const sh = '#22c55e', sd = '#15803d', sk = '#4ade80', ol = '#052e16';
+
+  // Back legs
+  [[-6, 9], [-6, -9]].forEach(([lx, ly]) => {
+    ctx.beginPath();
+    ctx.ellipse(lx, ly, 4, 3, ly > 0 ? 0.5 : -0.5, 0, Math.PI * 2);
+    ctx.fillStyle = sk; ctx.fill();
+    ctx.strokeStyle = ol; ctx.lineWidth = 0.8; ctx.stroke();
+  });
+  // Front legs
+  [[6, 10], [6, -10]].forEach(([lx, ly]) => {
+    ctx.beginPath();
+    ctx.ellipse(lx, ly, 4, 3, ly > 0 ? -0.5 : 0.5, 0, Math.PI * 2);
+    ctx.fillStyle = sk; ctx.fill();
+    ctx.strokeStyle = ol; ctx.lineWidth = 0.8; ctx.stroke();
+  });
+  // Tail
+  ctx.beginPath();
+  ctx.moveTo(-10, 0); ctx.quadraticCurveTo(-16, 3, -14, 0); ctx.quadraticCurveTo(-16, -3, -10, 0);
+  ctx.fillStyle = sk; ctx.fill(); ctx.strokeStyle = ol; ctx.lineWidth = 0.8; ctx.stroke();
+  // Shell
+  ctx.beginPath(); ctx.ellipse(0, 0, 12, 9, 0, 0, Math.PI * 2);
+  ctx.fillStyle = sh; ctx.fill(); ctx.strokeStyle = ol; ctx.lineWidth = 1; ctx.stroke();
+  // Shell pattern
+  ctx.strokeStyle = sd; ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  ctx.moveTo(4,0); ctx.lineTo(2,3); ctx.lineTo(-2,3); ctx.lineTo(-4,0); ctx.lineTo(-2,-3); ctx.lineTo(2,-3);
+  ctx.closePath(); ctx.stroke();
+  [[4,0,10,0],[2,3,5,7],[-2,3,-5,7],[-4,0,-10,0],[-2,-3,-5,-7],[2,-3,5,-7]].forEach(([sx,sy,ex,ey]) => {
+    ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(ex,ey); ctx.stroke();
+  });
+  // Head
+  ctx.beginPath(); ctx.ellipse(15, 0, 5, 4, 0, 0, Math.PI * 2);
+  ctx.fillStyle = sk; ctx.fill(); ctx.strokeStyle = ol; ctx.lineWidth = 1; ctx.stroke();
+  // Eye
+  ctx.beginPath(); ctx.arc(17, -1.5, 1.2, 0, Math.PI * 2); ctx.fillStyle = '#052e16'; ctx.fill();
+  ctx.beginPath(); ctx.arc(17.4, -1.9, 0.4, 0, Math.PI * 2); ctx.fillStyle = '#fff'; ctx.fill();
+}
+
+// ─── MOVEMENT ────────────────────────────────────────────────────────────────
+function moveForward(dist = 10) {
+  const rad = (turtle.heading * Math.PI) / 180;
+  const nx = turtle.x + Math.cos(rad) * dist;
+  const ny = turtle.y + Math.sin(rad) * dist;
+  if (turtle.penDown) {
+    trail.push({ sx: turtle.x, sy: turtle.y, ex: nx, ey: ny, color: turtle.penColor, width: turtle.penWidth });
+  }
+  turtle.x = nx; turtle.y = ny;
+  render(); updateHUD();
+}
+function turnRight(angle = 15) {
+  turtle.heading = (turtle.heading + angle) % 360;
+  render(); updateHUD();
+}
+
+// ─── SCRIPT QUEUE ────────────────────────────────────────────────────────────
+function enqueue(fn) { scriptQueue.push(fn); }
+function runQueue() {
+  pushHistory();
+  if (animInterval) clearInterval(animInterval);
+  setAnimating(true);
+  const delay = Math.max(10, 100 - turtle.speed * 10);
+  animInterval = setInterval(() => {
+    if (!scriptQueue.length) { clearInterval(animInterval); animInterval = null; setAnimating(false); return; }
+    const cmd = scriptQueue.shift();
+    if (cmd) cmd();
+  }, delay);
+}
+function stopScript() {
+  if (animInterval) { clearInterval(animInterval); animInterval = null; }
+  scriptQueue = [];
+  setAnimating(false);
+}
+function setAnimating(v) {
+  isAnimating = v;
+  document.getElementById('stopBtn').style.display = v ? 'flex' : 'none';
+  document.getElementById('qdSquare').disabled = v;
+  document.getElementById('qdCircle').disabled = v;
+  document.getElementById('qdSpiral').disabled = v;
+  document.querySelectorAll('.script-run-btn').forEach(b => b.disabled = v);
+}
+
+// ─── QUICK DRAW ──────────────────────────────────────────────────────────────
+function buildSquare() {
+  for (let i = 0; i < 4; i++) {
+    enqueue(() => moveForward(100));
+    enqueue(() => turnRight(90));
+  }
+}
+function buildCircle() {
+  for (let i = 0; i < 36; i++) {
+    enqueue(() => moveForward(15));
+    enqueue(() => turnRight(10));
+  }
+}
+function buildSpiral() {
+  for (let i = 1; i <= 30; i++) {
+    const d = i * 5;
+    enqueue(() => moveForward(d));
+    enqueue(() => turnRight(45));
+  }
+}
+
+// ─── HUD ─────────────────────────────────────────────────────────────────────
+function updateHUD() {
+  document.getElementById('hudX').textContent = Math.round(turtle.x);
+  document.getElementById('hudY').textContent = Math.round(turtle.y);
+  document.getElementById('hudH').textContent = Math.round(turtle.heading) + '°';
+  const p = document.getElementById('hudPen');
+  p.textContent = turtle.penDown ? 'DOWN' : 'UP';
+  p.className = 'hud-val ' + (turtle.penDown ? 'hud-pen-down' : 'hud-pen-up');
+}
+
+// ─── CONTROLS ────────────────────────────────────────────────────────────────
+function clearTrail() { pushHistory(); trail = []; render(); }
+function resetTurtle() {
+  pushHistory(); stopScript();
+  turtle.x = DEFAULT.x; turtle.y = DEFAULT.y; turtle.heading = DEFAULT.heading;
+  trail = []; render(); updateHUD();
+}
+
+document.getElementById('speedSlider').addEventListener('input', e => {
+  turtle.speed = +e.target.value;
+  document.getElementById('speedVal').textContent = e.target.value;
+});
+document.getElementById('penSizeSlider').addEventListener('input', e => {
+  turtle.penWidth = +e.target.value;
+  document.getElementById('penSizeVal').textContent = e.target.value;
+});
+document.getElementById('penToggle').addEventListener('click', () => {
+  turtle.penDown = !turtle.penDown;
+  document.getElementById('penToggle').className = 'toggle' + (turtle.penDown ? ' on' : '');
+  updateHUD();
+});
+document.getElementById('colorPicker').addEventListener('input', e => { turtle.penColor = e.target.value; });
+document.getElementById('clearBtn').addEventListener('click', clearTrail);
+document.getElementById('resetBtn').addEventListener('click', resetTurtle);
+document.getElementById('undoBtn').addEventListener('click', undo);
+document.getElementById('redoBtn').addEventListener('click', redo);
+
+// D-pad
+document.getElementById('btnUp').addEventListener('click', () => { pushHistory(); moveForward(20); });
+document.getElementById('btnDown').addEventListener('click', () => { pushHistory(); moveForward(-20); });
+document.getElementById('btnLeft').addEventListener('click', () => { pushHistory(); turnRight(-15); });
+document.getElementById('btnRight').addEventListener('click', () => { pushHistory(); turnRight(15); });
+
+// Quick Draw
+document.getElementById('qdSquare').addEventListener('click', () => { buildSquare(); runQueue(); });
+document.getElementById('qdCircle').addEventListener('click', () => { buildCircle(); runQueue(); });
+document.getElementById('qdSpiral').addEventListener('click', () => { buildSpiral(); runQueue(); });
+document.getElementById('stopBtn').addEventListener('click', stopScript);
+
+// ─── KEYBOARD ────────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
+
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); return; }
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); redo(); return; }
+
+  if (isAnimating) return;
+
+  const stepSize = turtle.speed * 2;
+  switch (e.key) {
+    case 'ArrowUp': case 'w': case 'W': e.preventDefault(); pushHistory(); moveForward(stepSize); break;
+    case 'ArrowDown': case 's': case 'S': e.preventDefault(); pushHistory(); moveForward(-stepSize); break;
+    case 'ArrowLeft': case 'a': case 'A': e.preventDefault(); turnRight(-15); break;
+    case 'ArrowRight': case 'd': case 'D': e.preventDefault(); turnRight(15); break;
+    case ' ': e.preventDefault();
+      turtle.penDown = !turtle.penDown;
+      document.getElementById('penToggle').className = 'toggle' + (turtle.penDown ? ' on' : '');
+      updateHUD(); break;
+    case 'r': case 'R': resetTurtle(); break;
+    case 'c': case 'C': clearTrail(); break;
+  }
+});
+
+// ─── SCRIPTS TAB ─────────────────────────────────────────────────────────────
+const SCRIPTS = [
+  {
+    name: 'Square', emoji: '⬜',
+    desc: 'Draws a perfect square by moving forward and turning right 4 times.',
+    build() { buildSquare(); }
+  },
+  {
+    name: 'Triangle', emoji: '🔺',
+    desc: 'Draws an equilateral triangle. Each turn is 120° because 3 × 120° = 360°.',
+    build() {
+      for (let i = 0; i < 3; i++) {
+        enqueue(() => moveForward(120)); enqueue(() => turnRight(120));
+      }
+    }
+  },
+  {
+    name: 'Pentagon', emoji: '⬠',
+    desc: 'Five sides, each turn is 72° (360° ÷ 5). Looks like home plate in baseball.',
+    build() {
+      for (let i = 0; i < 5; i++) {
+        enqueue(() => moveForward(80)); enqueue(() => turnRight(72));
+      }
+    }
+  },
+  {
+    name: 'Hexagon', emoji: '⬡',
+    desc: 'Six sides with 60° turns. The shape that covers a surface with no gaps!',
+    build() {
+      for (let i = 0; i < 6; i++) {
+        enqueue(() => moveForward(70)); enqueue(() => turnRight(60));
+      }
+    }
+  },
+  {
+    name: 'Star', emoji: '⭐',
+    desc: 'A 5-pointed star drawn by moving forward and turning 144° each time.',
+    build() {
+      for (let i = 0; i < 5; i++) {
+        enqueue(() => moveForward(120)); enqueue(() => turnRight(144));
+      }
+    }
+  },
+  {
+    name: 'Spiral', emoji: '🌀',
+    desc: 'Each step gets longer, pushing the path outward into a growing spiral.',
+    build() { buildSpiral(); }
+  },
+  {
+    name: 'Circle', emoji: '⭕',
+    desc: '36 tiny steps of 10° each. 36 × 10° = 360° — one full smooth rotation.',
+    build() { buildCircle(); }
+  },
+  {
+    name: 'Sunburst', emoji: '☀️',
+    desc: '8 rays going out from the center, each a line forward then back.',
+    build() {
+      for (let i = 0; i < 8; i++) {
+        enqueue(() => moveForward(80)); enqueue(() => moveForward(-80)); enqueue(() => turnRight(45));
+      }
+    }
+  },
+];
+
+const grid = document.getElementById('scriptGrid');
+SCRIPTS.forEach(s => {
+  const card = document.createElement('div');
+  card.className = 'script-card';
+  card.innerHTML = `
+    <h3>${s.emoji} ${s.name}</h3>
+    <p>${s.desc}</p>
+    <button class="script-run-btn" data-name="${s.name}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+      Run
+    </button>
+  `;
+  card.querySelector('button').addEventListener('click', () => {
+    s.build();
+    runQueue();
+    switchTab('simulator');
+    toast(s.name + ' started', 'Switched to simulator to watch.');
+  });
+  grid.appendChild(card);
+});
+
+// ─── TABS ─────────────────────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + name));
+}
+document.querySelectorAll('.tab-btn').forEach(b => {
+  b.addEventListener('click', () => switchTab(b.dataset.tab));
+});
+
+// ─── TOAST ───────────────────────────────────────────────────────────────────
+let toastTimer;
+function toast(title, msg = '') {
+  document.getElementById('toastTitle').textContent = title;
+  document.getElementById('toastMsg').textContent = msg;
+  const el = document.getElementById('toast');
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+render();
+updateHUD();
+</script>
+</body>
+</html>
